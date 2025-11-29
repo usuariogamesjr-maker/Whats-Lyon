@@ -8,173 +8,95 @@ const pino = require("pino");
 const qrcode = require("qrcode-terminal");
 
 // ---- CONFIGURACIONES ----
-const lastActive = {}; // Para inactivos
-const INACTIVO_DIAS = 7; // Días para considerar inactivo
-const PREFIX = "."; // Prefijo de comandos
+const lastActive = {};              // Para inactivos
+let INACTIVO_DIAS = 7;              // Días para considerar inactivo (modificable con .setkick)
+const PREFIX = ".";                 // Prefijo de comandos
+const groupTimers = {};             // { groupJid: Timeout }
 
 // ---- ACERTIJOS (50 en total) ----
 const riddles = [
-  {
-    q: "👀 Soy algo que todos pueden abrir, pero nadie puede cerrar. ¿Qué soy?",
-    a: "🥚 Un huevo.",
-  },
-  {
-    q: "🕳️ ¿Qué tiene agujeros por todos lados y aún así puede contener agua?",
-    a: "🧽 Una esponja.",
-  },
-  {
-    q: "🌑 Cuanto más grande soy, menos se ve. ¿Qué soy?",
-    a: "🌌 La oscuridad.",
-  },
+  { q: "👀 Soy algo que todos pueden abrir, pero nadie puede cerrar. ¿Qué soy?", a: "🥚 Un huevo." },
+  { q: "🕳️ ¿Qué tiene agujeros por todos lados y aún así puede contener agua?", a: "🧽 Una esponja." },
+  { q: "🌑 Cuanto más grande soy, menos se ve. ¿Qué soy?", a: "🌌 La oscuridad." },
   { q: "🌧️ Vuelo sin alas, lloro sin ojos. ¿Qué soy?", a: "☁️ La nube." },
   { q: "🤫 Si me nombras, desaparezco. ¿Qué soy?", a: "🔇 El silencio." },
-  {
-    q: "⏰ Tengo agujas pero no pincho, marco horas sin descanso. ¿Qué soy?",
-    a: "🕒 Un reloj.",
-  },
+  { q: "⏰ Tengo agujas pero no pincho, marco horas sin descanso. ¿Qué soy?", a: "🕒 Un reloj." },
   { q: "💨 Entro al agua y no me mojo. ¿Qué soy?", a: "🪞 El reflejo." },
-  {
-    q: "👣 Siempre va delante de ti, pero nunca lo puedes ver. ¿Qué es?",
-    a: "⏳ El futuro.",
-  },
+  { q: "👣 Siempre va delante de ti, pero nunca lo puedes ver. ¿Qué es?", a: "⏳ El futuro." },
   { q: "📶 Sube y baja sin moverse del lugar. ¿Qué es?", a: "📊 La señal." },
   { q: "🔊 Me rompo si dices mi nombre. ¿Qué soy?", a: "🤐 El silencio." },
-  {
-    q: "🗺️ Tengo ciudades pero no casas, montañas pero no árboles y agua pero no peces. ¿Qué soy?",
-    a: "🗺️ Un mapa.",
-  },
-  {
-    q: "🤝 Si me tienes, quieres compartirlo. Si me compartes, ya no me tienes. ¿Qué soy?",
-    a: "🤫 Un secreto.",
-  },
-  {
-    q: "🔤 Es tuyo, pero la gente lo usa más que tú. ¿Qué es?",
-    a: "🪪 Tu nombre.",
-  },
-  {
-    q: "🌬️ Peso menos que una pluma, pero ni el más fuerte me puede sostener mucho tiempo. ¿Qué soy?",
-    a: "💨 La respiración.",
-  },
+  { q: "🗺️ Tengo ciudades pero no casas, montañas pero no árboles y agua pero no peces. ¿Qué soy?", a: "🗺️ Un mapa." },
+  { q: "🤝 Si me tienes, quieres compartirlo. Si me compartes, ya no me tienes. ¿Qué soy?", a: "🤫 Un secreto." },
+  { q: "🔤 Es tuyo, pero la gente lo usa más que tú. ¿Qué es?", a: "🪪 Tu nombre." },
+  { q: "🌬️ Peso menos que una pluma, pero ni el más fuerte me puede sostener mucho tiempo. ¿Qué soy?", a: "💨 La respiración." },
   { q: "🕯️ Nace grande y muere pequeño. ¿Qué es?", a: "🕯️ Una vela." },
-  {
-    q: "🌊 Camina sin pies, corre sin piernas y ruge sin boca. ¿Qué es?",
-    a: "🌊 El mar.",
-  },
+  { q: "🌊 Camina sin pies, corre sin piernas y ruge sin boca. ¿Qué es?", a: "🌊 El mar." },
   { q: "🧻 ¿Qué se moja mientras seca?", a: "🧻 La toalla." },
-  {
-    q: "🕳️ Cuanto más le quitas, más grande se hace. ¿Qué es?",
-    a: "🕳️ Un hueco.",
-  },
+  { q: "🕳️ Cuanto más le quitas, más grande se hace. ¿Qué es?", a: "🕳️ Un hueco." },
   { q: "🦷 Tiene dientes pero no come. ¿Qué es?", a: "🧵 Un peine." },
   { q: "🚶 Todos lo pisan, pero nadie se queja. ¿Qué es?", a: "🛣️ El suelo." },
-  {
-    q: "🍝 Entra duro y seco y sale blando y mojado. ¿Qué es?",
-    a: "🍝 La pasta.",
-  },
-  {
-    q: "🚣 Va por el agua y no se moja. ¿Qué es?",
-    a: "⛵ La sombra del barco.",
-  },
-  {
-    q: "🗣️ Habla todos los idiomas sin haber ido a la escuela. ¿Qué es?",
-    a: "📢 El eco.",
-  },
-  {
-    q: "🎈 Es redondo como el mundo, ligero como el viento; si quieres que te lo diga, espera un momento. ¿Qué es?",
-    a: "🎈 Un globo.",
-  },
-  {
-    q: "🌞 Te sigue a todas partes, pero solo sale con sol. ¿Qué es?",
-    a: "👤 Tu sombra.",
-  },
+  { q: "🍝 Entra duro y seco y sale blando y mojado. ¿Qué es?", a: "🍝 La pasta." },
+  { q: "🚣 Va por el agua y no se moja. ¿Qué es?", a: "⛵ La sombra del barco." },
+  { q: "🗣️ Habla todos los idiomas sin haber ido a la escuela. ¿Qué es?", a: "📢 El eco." },
+  { q: "🎈 Es redondo como el mundo, ligero como el viento; si quieres que te lo diga, espera un momento. ¿Qué es?", a: "🎈 Un globo." },
+  { q: "🌞 Te sigue a todas partes, pero solo sale con sol. ¿Qué es?", a: "👤 Tu sombra." },
   { q: "🎢 ¿Qué sube pero nunca baja?", a: "🎂 La edad." },
   { q: "🕰️ ¿Qué siempre viene pero nunca llega?", a: "🌅 El mañana." },
   { q: "👁️‍🗨️ ¿Qué cosa tiene un solo ojo pero no puede ver?", a: "🪡 La aguja." },
-  {
-    q: "🏃 ¿Qué corre por la ciudad pero nunca se mueve?",
-    a: "🛣️ Las calles.",
-  },
+  { q: "🏃 ¿Qué corre por la ciudad pero nunca se mueve?", a: "🛣️ Las calles." },
   { q: "💔 ¿Qué se rompe sin tocarlo?", a: "🤝 Una promesa." },
   { q: "🌤️ ¿Qué pasa por delante del sol y no hace sombra?", a: "☁️ La luz." },
   { q: "🛒 ¿Qué se compra para comer pero nunca se come?", a: "🍽️ El plato." },
-  {
-    q: "🧼 ¿Qué es algo que cuanto más lavas más pequeño se vuelve?",
-    a: "🧼 El jabón.",
-  },
-  {
-    q: "👔 ¿Qué tiene cuello pero no cabeza?",
-    a: "👕 Una camisa / una botella.",
-  },
+  { q: "🧼 ¿Qué es algo que cuanto más lavas más pequeño se vuelve?", a: "🧼 El jabón." },
+  { q: "👔 ¿Qué tiene cuello pero no cabeza?", a: "👕 Una camisa / una botella." },
   { q: "🎧 ¿Qué se puede oír pero no se puede ver?", a: "🎵 El sonido." },
-  {
-    q: "🧩 ¿Qué es lo que cuanto más lleno está, menos pesa?",
-    a: "🎈 Un globo lleno de aire.",
-  },
+  { q: "🧩 ¿Qué es lo que cuanto más lleno está, menos pesa?", a: "🎈 Un globo lleno de aire." },
   { q: "🖐️ ¿Qué cosa tiene manos pero no puede aplaudir?", a: "🕒 El reloj." },
   { q: "☔ ¿Qué sube cuando la lluvia baja?", a: "☂️ El paraguas." },
-  {
-    q: "🔤 ¿Qué pasa una vez en el minuto, dos veces en el momento y ninguna en cien años?",
-    a: "🔤 La letra ‘m’.",
-  },
-  {
-    q: "🪑 ¿Qué tiene patas pero no camina, espalda pero no se dobla?",
-    a: "🪑 La silla.",
-  },
-  {
-    q: "🤧 ¿Qué se puede atrapar pero no se puede lanzar?",
-    a: "🤧 Un resfriado.",
-  },
-  {
-    q: "🎹 ¿Qué tiene muchas llaves pero no puede abrir puertas?",
-    a: "🎹 Un piano.",
-  },
-  {
-    q: "🛏️ ¿Qué tipo de habitación no tiene puertas ni ventanas?",
-    a: "🍄 Una seta (‘mushroom’).",
-  },
-  {
-    q: "👀 ¿Qué siempre está delante de ti pero no puedes verlo?",
-    a: "⏳ El futuro.",
-  },
-  {
-    q: "🪙 ¿Qué se hace pedazos sin caerse al suelo?",
-    a: "💔 El corazón / un sueño.",
-  },
-  {
-    q: "💡 ¿Qué se enciende de noche y se apaga de día, pero no es una luz artificial?",
-    a: "🌙 Las estrellas.",
-  },
+  { q: "🔤 ¿Qué pasa una vez en el minuto, dos veces en el momento y ninguna en cien años?", a: "🔤 La letra ‘m’." },
+  { q: "🪑 ¿Qué tiene patas pero no camina, espalda pero no se dobla?", a: "🪑 La silla." },
+  { q: "🤧 ¿Qué se puede atrapar pero no se puede lanzar?", a: "🤧 Un resfriado." },
+  { q: "🎹 ¿Qué tiene muchas llaves pero no puede abrir puertas?", a: "🎹 Un piano." },
+  { q: "🛏️ ¿Qué tipo de habitación no tiene puertas ni ventanas?", a: "🍄 Una seta (‘mushroom’)." },
+  { q: "👀 ¿Qué siempre está delante de ti pero no puedes verlo?", a: "⏳ El futuro." },
+  { q: "🪙 ¿Qué se hace pedazos sin caerse al suelo?", a: "💔 El corazón / un sueño." },
+  { q: "💡 ¿Qué se enciende de noche y se apaga de día, pero no es una luz artificial?", a: "🌙 Las estrellas." },
   { q: "📚 ¿Qué aumenta cuanto más se reparte?", a: "📚 El conocimiento." },
-  {
-    q: "🧊 Me derrito si me miras de cerca al sol, pero en el frío duro estoy mejor. ¿Qué soy?",
-    a: "🧊 El hielo.",
-  },
-  {
-    q: "🎭 ¿Qué tiene cara pero no sentimientos, y siempre dice la verdad?",
-    a: "🕒 El reloj.",
-  },
-  {
-    q: "🚪 ¿Qué se abre y se cierra sin manos ni llaves, y deja pasar el aire?",
-    a: "🪟 La ventana.",
-  },
+  { q: "🧊 Me derrito si me miras de cerca al sol, pero en el frío duro estoy mejor. ¿Qué soy?", a: "🧊 El hielo." },
+  { q: "🎭 ¿Qué tiene cara pero no sentimientos, y siempre dice la verdad?", a: "🕒 El reloj." },
+  { q: "🚪 ¿Qué se abre y se cierra sin manos ni llaves, y deja pasar el aire?", a: "🪟 La ventana." },
 ];
 
 // Estado de acertijos por grupo
-const lastRiddle = {}; // { groupJid: { idx, msgId } }
-const riddleTimers = {}; // { groupJid: Timeout }
+const lastRiddle = {};    // { groupJid: { idx, msgId } }
+const riddleTimers = {};  // { groupJid: Timeout }
+
+// ---- FUNCIONES AUXILIARES ----
+function parseDuration(str) {
+  if (!str) return 0;
+  const regex = /(\d+)([smh])/gi;
+  let match;
+  let ms = 0;
+  while ((match = regex.exec(str)) !== null) {
+    const value = parseInt(match[1]);
+    const unit = match[2].toLowerCase();
+    if (unit === "s") ms += value * 1000;
+    else if (unit === "m") ms += value * 60 * 1000;
+    else if (unit === "h") ms += value * 60 * 60 * 1000;
+  }
+  return ms;
+}
 
 async function startBot() {
   try {
     console.log("▶️ WhatsApp Bot iniciando...");
     console.log("🚀 Iniciando bot de WhatsApp...");
 
-    // Obtener la última versión de WhatsApp
     const { version, isLatest } = await fetchLatestBaileysVersion();
     console.log(
       `📱 Usando versión de WhatsApp: ${version.join(".")} (última: ${isLatest})`,
     );
 
-    // Carpeta de sesión nueva
     const { state, saveCreds } = await useMultiFileAuthState("./auth");
     console.log("📁 Credenciales de sesión listas (./auth)");
 
@@ -223,7 +145,7 @@ async function startBot() {
       }
     });
 
-    // ---- Funciones auxiliares ----
+    // ---- Helpers internos ----
     function getMessageText(msg) {
       const m = msg.message;
       if (!m) return "";
@@ -342,29 +264,14 @@ async function startBot() {
       const args = text.slice(PREFIX.length).trim().split(" ");
       const command = args.shift()?.toLowerCase();
 
-      const adminOnlyCommands = [
-        "admins",
-        "notify",
-        "aviso",
-        "inactivos",
-        "mute",
-        "unmute",
-        "promote",
-        "demote",
-        "grupo",
-        "todos",
-        "todos2",
-      ];
-
-      if (adminOnlyCommands.includes(command)) {
-        const esAdmin = await isAdmin(from, sender);
-        if (!esAdmin) {
-          await sock.sendMessage(from, {
-            text: "🚫 *Solo administradores pueden usar este comando.*",
-            mentions: [sender],
-          });
-          return;
-        }
+      // 👉 A partir de aquí: SOLO ADMINS
+      const esAdmin = await isAdmin(from, sender);
+      if (!esAdmin) {
+        await sock.sendMessage(from, {
+          text: "🚫 *Solo administradores pueden usar comandos del bot.*",
+          mentions: [sender],
+        });
+        return;
       }
 
       // ---- COMANDOS ----
@@ -375,20 +282,26 @@ async function startBot() {
 
 👑 *Administración*
 • .admins - Lista de admins del grupo
-• .promote (responder o número) - Dar admin ✨
-• .demote (responder o número) - Quitar admin 🔻
-• .grupo abrir - Todos pueden hablar 🗣️
-• .grupo cerrar - Solo admins 🔒
+• .admin (responder o número) - Dar admin ✨
+• .kadmin (responder o número) - Quitar admin 🔻
+• .ban / .kick (responder o número) - Expulsar del grupo 🚪
+• .grupo abrir / .gupo abrir - Abrir grupo (todos hablan) 🗣️
+• .grupo cerrar - Cerrar grupo (solo admins) 🔒
 • .mute - Cierra el grupo (solo admins) 🚫
 • .unmute - Abre el grupo (todos) ✅
+• .grouptime abrir/cerrar <tiempo> - Abrir/cerrar auto ⏱️
+• .link - Enviar enlace del grupo 🔗
 • .inactivos list - Lista inactivos (+${INACTIVO_DIAS} días) 💤
 • .inactivos kick - Expulsa inactivos 🧹
+• .fantasmas - Alias de inactivos list 👻
+• .kickfantasmas - Alias de inactivos kick 👞
+• .setkick <días> - Cambiar días para inactivos ⚙️
+• .ruletaban - Expulsar un usuario al azar (no admin) 🎲
 
-🔔 *Avisos y menciones*
-• .notify texto - Aviso para todos 📢
-• .aviso texto - Aviso para todos 📢
+🔔 *Avisos*
+• .notify texto - Aviso sin mencionar a todos 📢
+• .aviso texto - Aviso sin mencionar a todos 📢
 • .todos - Mención global en una línea 🙋
-• .todos2 - Mención global en lista 📋
 
 🎮 *Juegos*
 • .juegos - Ver juegos disponibles 🎲
@@ -396,7 +309,9 @@ async function startBot() {
    (Para jugar, responde al mensaje del acertijo)
 `;
         await sock.sendMessage(from, { text: menuText });
-      } else if (command === "admins") {
+      }
+
+      else if (command === "admins") {
         const admins = await getAdmins(from);
         const mentions = admins.map((a) => a.id);
         const lista = admins
@@ -407,7 +322,9 @@ async function startBot() {
           text: `👑 *Administradores del grupo:*\n\n${lista}`,
           mentions,
         });
-      } else if (command === "encuesta") {
+      }
+
+      else if (command === "encuesta") {
         const full = args.join(" ");
         if (!full.includes("|")) {
           await sock.sendMessage(from, {
@@ -428,7 +345,9 @@ async function startBot() {
         await sock.sendMessage(from, {
           text: `📊 *Encuesta creada:*\n\n❓ ${pregunta}\n\n${opsTxt}\n\n👉 Responde con el *número* de tu opción.`,
         });
-      } else if (command === "notify" || command === "aviso") {
+      }
+
+      else if (command === "notify" || command === "aviso") {
         const mensaje = args.join(" ").trim();
         if (!mensaje) {
           await sock.sendMessage(from, {
@@ -436,17 +355,21 @@ async function startBot() {
           });
           return;
         }
-        const metadata = await sock.groupMetadata(from);
-        const mentions = metadata.participants.map((p) => p.id);
 
+        // 🔹 SIN mencionar a todos:
         await sock.sendMessage(from, {
-          text: `📢 *Aviso importante para todos:*\n\n${mensaje}\n\n${mentions
-            .map((m) => `@${m.split("@")[0]}`)
-            .join(" ")}`,
-          mentions,
+          text: `📢 *Aviso importante:*\n\n${mensaje}`,
         });
-      } else if (command === "inactivos") {
-        const sub = (args[0] || "").toLowerCase();
+      }
+
+      else if (command === "inactivos" || command === "fantasmas" || command === "kickfantasmas") {
+        const sub =
+          command === "fantasmas"
+            ? "list"
+            : command === "kickfantasmas"
+            ? "kick"
+            : (args[0] || "").toLowerCase();
+
         const metadata = await sock.groupMetadata(from);
         const ahora = Date.now();
         const limiteMs = INACTIVO_DIAS * 24 * 60 * 60 * 1000;
@@ -488,20 +411,54 @@ async function startBot() {
           });
         } else {
           await sock.sendMessage(from, {
-            text: "ℹ️ *Uso correcto:*\n.inactivos list\n.inactivos kick",
+            text: "ℹ️ *Uso correcto:*\n.inactivos list\n.inactivos kick\n.fantasmas\n.kickfantasmas",
           });
         }
-      } else if (command === "mute") {
+      }
+
+      else if (command === "setkick") {
+        const dias = parseInt(args[0] || "");
+        if (isNaN(dias) || dias <= 0) {
+          await sock.sendMessage(from, {
+            text: "⚙️ *Uso correcto:*\n.setkick <días>\nEjemplo: .setkick 7",
+          });
+          return;
+        }
+        INACTIVO_DIAS = dias;
+        await sock.sendMessage(from, {
+          text: `⚙️ El tiempo para inactivos ahora es de *${INACTIVO_DIAS} días*.`,
+        });
+      }
+
+      else if (command === "mute") {
         await sock.groupSettingUpdate(from, "announcement");
         await sock.sendMessage(from, {
           text: "🔒 *El grupo ha sido cerrado*\nSolo administradores pueden enviar mensajes.",
         });
-      } else if (command === "unmute") {
+      }
+
+      else if (command === "unmute") {
         await sock.groupSettingUpdate(from, "not_announcement");
         await sock.sendMessage(from, {
           text: "🔓 *El grupo ha sido abierto*\nTodos pueden enviar mensajes de nuevo. 🎉",
         });
-      } else if (command === "promote") {
+      }
+
+      else if (command === "link") {
+        try {
+          const code = await sock.groupInviteCode(from);
+          const link = `https://chat.whatsapp.com/${code}`;
+          await sock.sendMessage(from, {
+            text: `🔗 *Enlace del grupo:*\n${link}`,
+          });
+        } catch (e) {
+          await sock.sendMessage(from, {
+            text: "⚠️ No puedo obtener el enlace. Revisa que yo sea admin.",
+          });
+        }
+      }
+
+      else if (command === "admin" || command === "promote") {
         let target;
 
         if (msg.message?.extendedTextMessage?.contextInfo?.participant) {
@@ -513,7 +470,7 @@ async function startBot() {
 
         if (!target) {
           await sock.sendMessage(from, {
-            text: "✨ *Uso correcto:*\nResponde a un mensaje con .promote\nO usa: .promote 503XXXXXXXX",
+            text: "✨ *Uso correcto:*\nResponde a un mensaje con .admin\nO usa: .admin 503XXXXXXXX",
           });
           return;
         }
@@ -523,7 +480,9 @@ async function startBot() {
           text: `✨ *Nuevo admin en la casa:*\n@${target.split("@")[0]} ahora es admin 👑`,
           mentions: [target],
         });
-      } else if (command === "demote") {
+      }
+
+      else if (command === "kadmin" || command === "demote") {
         let target;
 
         if (msg.message?.extendedTextMessage?.contextInfo?.participant) {
@@ -535,7 +494,7 @@ async function startBot() {
 
         if (!target) {
           await sock.sendMessage(from, {
-            text: "🔻 *Uso correcto:*\nResponde a un mensaje con .demote\nO usa: .demote 503XXXXXXXX",
+            text: "🔻 *Uso correcto:*\nResponde a un mensaje con .kadmin\nO usa: .kadmin 503XXXXXXXX",
           });
           return;
         }
@@ -545,7 +504,39 @@ async function startBot() {
           text: `🔻 *Admin removido:*\n@${target.split("@")[0]} ya no es administrador.`,
           mentions: [target],
         });
-      } else if (command === "grupo") {
+      }
+
+      else if (command === "ban" || command === "kick") {
+        let target;
+
+        if (msg.message?.extendedTextMessage?.contextInfo?.participant) {
+          target = msg.message.extendedTextMessage.contextInfo.participant;
+        } else if (args[0]) {
+          const num = args[0].replace(/[^0-9]/g, "");
+          target = num + "@s.whatsapp.net";
+        }
+
+        if (!target) {
+          await sock.sendMessage(from, {
+            text: "🛑 *Uso correcto:*\nResponde a un mensaje con .ban / .kick\nO usa: .ban 503XXXXXXXX",
+          });
+          return;
+        }
+
+        try {
+          await sock.groupParticipantsUpdate(from, [target], "remove");
+          await sock.sendMessage(from, {
+            text: `🚪 *Usuario expulsado del grupo:*\n@${target.split("@")[0]}`,
+            mentions: [target],
+          });
+        } catch (e) {
+          await sock.sendMessage(from, {
+            text: "⚠️ No pude expulsar al usuario. Revisa que yo sea admin y que el número esté en el grupo.",
+          });
+        }
+      }
+
+      else if (command === "grupo" || command === "gupo") {
         const accion = (args[0] || "").toLowerCase();
         if (accion === "abrir") {
           await sock.groupSettingUpdate(from, "not_announcement");
@@ -562,7 +553,9 @@ async function startBot() {
             text: "ℹ️ *Uso correcto:*\n.grupo abrir\n.grupo cerrar",
           });
         }
-      } else if (command === "todos") {
+      }
+
+      else if (command === "todos") {
         const metadata = await sock.groupMetadata(from);
         const mentions = metadata.participants.map((p) => p.id);
         const texto =
@@ -573,22 +566,99 @@ async function startBot() {
           text: texto,
           mentions,
         });
-      } else if (command === "todos2") {
+      }
+
+      else if (command === "ruletaban") {
         const metadata = await sock.groupMetadata(from);
-        const mentions = metadata.participants.map((p) => p.id);
-        const texto =
-          "📢 *Mención global:*\n\n" +
-          mentions.map((m, i) => `${i + 1}. @${m.split("@")[0]}`).join("\n");
+        const participantes = metadata.participants.filter(
+          (p) => !p.admin && p.id !== sender, // no admins y no quien ejecuta
+        );
+
+        if (!participantes.length) {
+          await sock.sendMessage(from, {
+            text: "🎲 No hay usuarios elegibles para ruletaban (solo no admins).",
+          });
+          return;
+        }
+
+        const elegido = participantes[Math.floor(Math.random() * participantes.length)];
+
+        try {
+          await sock.groupParticipantsUpdate(from, [elegido.id], "remove");
+          await sock.sendMessage(from, {
+            text: `🎲 *RULETABAN ACTIVADA*\n\n😈 Usuario expulsado al azar:\n@${elegido.id.split("@")[0]}`,
+            mentions: [elegido.id],
+          });
+        } catch (e) {
+          await sock.sendMessage(from, {
+            text: "⚠️ No pude expulsar al usuario. Revisa que yo sea admin.",
+          });
+        }
+      }
+
+      else if (command === "grouptime") {
+        const action = (args[0] || "").toLowerCase();
+        const timeStr = args[1];
+
+        if (!["abrir", "cerrar"].includes(action) || !timeStr) {
+          await sock.sendMessage(from, {
+            text:
+              "⏱️ *Uso correcto:*\n" +
+              ".grouptime abrir 10m\n" +
+              ".grouptime cerrar 30s\n\n" +
+              "Unidades: s = segundos, m = minutos, h = horas.\nEj: 30s, 10m, 1h, 1m30s, 1h30m",
+          });
+          return;
+        }
+
+        const ms = parseDuration(timeStr);
+        if (!ms || ms <= 0) {
+          await sock.sendMessage(from, {
+            text: "⚠️ Tiempo inválido. Ejemplos: 30s, 10m, 1h, 1m30s, 1h30m",
+          });
+          return;
+        }
+
+        if (groupTimers[from]) {
+          clearTimeout(groupTimers[from]);
+          delete groupTimers[from];
+        }
 
         await sock.sendMessage(from, {
-          text: texto,
-          mentions,
+          text:
+            action === "cerrar"
+              ? `⏳ El grupo será *CERRADO* automáticamente en ${timeStr}.`
+              : `⏳ El grupo será *ABIERTO* automáticamente en ${timeStr}.`,
         });
-      } else if (command === "juegos") {
+
+        groupTimers[from] = setTimeout(async () => {
+          try {
+            if (action === "cerrar") {
+              await sock.groupSettingUpdate(from, "announcement");
+              await sock.sendMessage(from, {
+                text: "🔒 *El grupo ha sido cerrado automáticamente.*",
+              });
+            } else {
+              await sock.groupSettingUpdate(from, "not_announcement");
+              await sock.sendMessage(from, {
+                text: "🔓 *El grupo ha sido abierto automáticamente.*",
+              });
+            }
+          } catch (e) {
+            console.log("Error en temporizador de grouptime:", e);
+          } finally {
+            delete groupTimers[from];
+          }
+        }, ms);
+      }
+
+      else if (command === "juegos") {
         await sock.sendMessage(from, {
           text: `🎮 *Juegos disponibles:*\n\n• .acertijo - Enviar un acertijo al azar 🧠\n   (Responde al mensaje del acertijo para intentar la respuesta)\n`,
         });
-    } else if (command === "acertijo") {
+      }
+
+      else if (command === "acertijo") {
         if (riddleTimers[from]) {
           clearTimeout(riddleTimers[from]);
           delete riddleTimers[from];
@@ -621,6 +691,7 @@ async function startBot() {
           }
         }, 60000);
       }
+
     });
   } catch (err) {
     console.error("❌ Error en el bot:", err);
@@ -633,4 +704,5 @@ startBot().catch((err) => {
   console.error("❌ Error fatal:", err);
   process.exit(1);
 });
-            
+
+      
